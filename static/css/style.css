@@ -1,0 +1,111 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+h1, h2, h3 {
+    color: #333;
+}
+
+.section {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.layout {
+    display: flex;
+    gap: 20px;
+}
+
+.column {
+    flex: 1;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 5px;
+}
+
+.data-display {
+    min-height: 200px;
+    background-color: #fafafa;
+    padding: 10px;
+    border: 1px inset #ddd;
+    margin-bottom: 10px;
+}
+
+.data-display div {
+    margin-bottom: 5px;
+}
+
+.navigation-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.video-container {
+    background-color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+
+video {
+    background-color: #333;
+    object-fit: cover;
+}
+
+.input-group {
+    margin-bottom: 10px;
+}
+
+.input-group label {
+    margin-right: 5px;
+}
+
+.input-group input[type="number"] {
+    width: 60px;
+    margin-right: 15px;
+}
+
+.field-selection {
+    margin-bottom: 15px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid #eee;
+}
+
+.capture-btn {
+    width: 100%;
+    padding: 15px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1.1em;
+    cursor: pointer;
+}
+
+.capture-btn:hover {
+    background-color: #218838;
+}
+
+button {
+    cursor: pointer;
+    padding: 5px 15px;
+}

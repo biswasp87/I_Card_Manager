@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ID Card Photo Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>ID Card Photo Manager</h1>
+
+        <div class="section upload-section">
+            <h2>1. Import Student Data</h2>
+            <div class="input-group">
+                <input type="file" id="excelFile" accept=".xlsx, .xls">
+                <button onclick="uploadExcel()">Upload</button>
+            </div>
+        </div>
+
+        <div id="mainContent" style="display:none;">
+            <div class="layout">
+                <div class="column data-column">
+                    <h2>2. Student Data</h2>
+                    <div id="studentDataDisplay" class="data-display">
+                        <!-- Student data will be shown here -->
+                    </div>
+                    <div class="navigation-buttons">
+                        <button onclick="prevRecord()">Previous</button>
+                        <span id="recordStatus">0 / 0</span>
+                        <button onclick="nextRecord()">Next</button>
+                    </div>
+                </div>
+
+                <div class="column camera-column">
+                    <h2>3. Camera Preview</h2>
+                    <div class="video-container">
+                        <video id="video" autoplay></video>
+                        <canvas id="canvas" style="display:none;"></canvas>
+                    </div>
+
+                    <div class="controls">
+                        <div class="input-group">
+                            <label>Width:</label>
+                            <input type="number" id="previewWidth" value="300" onchange="updatePreviewSize()">
+                            <label>Height:</label>
+                            <input type="number" id="previewHeight" value="300" onchange="updatePreviewSize()">
+                        </div>
+
+                        <h3>4. Save Configuration</h3>
+                        <div id="fieldCheckboxes" class="field-selection">
+                            <!-- Column checkboxes will be here -->
+                        </div>
+
+                        <div class="input-group">
+                            <label>Save Directory:</label>
+                            <input type="text" id="savePath" value="photos">
+                        </div>
+
+                        <button class="capture-btn" onclick="capturePhoto()">Capture & Save Photo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

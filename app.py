@@ -61,31 +61,31 @@ def save_photo():
     data = request.json
     if not data or 'image' not in data:
         return jsonify({"error": "No image data"}), 400
-
+    
     image_data = data['image'].split(',')[1]
     image_bytes = base64.b64decode(image_data)
     img = Image.open(BytesIO(image_bytes))
-
+    
     filename = data.get('filename', 'photo.jpg')
     if not filename.lower().endswith(('.png', '.jpg', '.jpeg')):
         filename += '.jpg'
-
+    
     save_path = data.get('save_path', app.config['PHOTO_FOLDER'])
     # Simple sanitization to prevent saving outside of the base directory if needed
-    # but the requirement says "directory choosed by the user", so we'll allow it
+    # but the requirement says "directory choosed by the user", so we'll allow it 
     # but ensure it's at least within a reasonable place or just follow the requirement.
     # For a local tool, we follow the user's choice.
-
+    
     # Ensure the path is not empty and is safe-ish
     if not save_path:
         save_path = app.config['PHOTO_FOLDER']
-
+        
     os.makedirs(save_path, exist_ok=True)
-
+    
     full_path = os.path.join(save_path, filename)
     img.save(full_path)
-
+    
     return jsonify({"message": f"Photo saved to {full_path}"})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)

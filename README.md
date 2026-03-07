@@ -17,13 +17,16 @@ A Flask-based application to import student data from Excel and capture photos v
    pip install -r requirements.txt
    ```
 
-2. **Run the Application:**
+2. **Configure Google Drive (Optional):**
+   If you wish to use Google Drive storage, you must provide a `client_secrets.json` file in the root directory.
+
+3. **Run the Application:**
    Start the Flask server by running:
    ```bash
    python app.py
    ```
 
-3. **Access the App:**
+4. **Access the App:**
    Open your browser and go to `http://localhost:5000`.
 
 ## Usage

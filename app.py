@@ -6,13 +6,14 @@ from io import BytesIO
 from PIL import Image
 import json
 import psycopg2
+from psycopg2 import sql
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google_auth_oauthlib.flow import Flow
 from flask import session, url_for, redirect
 
 app = Flask(__name__)
-app.secret_key = 'super_secret_key_for_session'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key_for_dev')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['PHOTO_FOLDER'] = 'photos'
 
@@ -22,6 +23,7 @@ os.makedirs(app.config['PHOTO_FOLDER'], exist_ok=True)
 
 # Global variable to store student data
 student_df = None
+source_info = {}
 
 @app.route('/')
 def index():
@@ -32,18 +34,25 @@ def fetch_db():
     global student_df
     data = request.json
     try:
-        conn = psycopg2.connect(
-            host=data['host'],
-            database=data['database'],
-            user=data['user'],
-            password=data['password'],
-            port=data.get('port', 5432)
-        )
-        query = f"SELECT * FROM {data['table']}"
-        student_df = pd.read_sql(query, conn)
+        conn_params = {
+            'host': data['host'],
+            'database': data['database'],
+            'user': data['user'],
+            'password': data['password'],
+            'port': data.get('port', 5432)
+        }
+        conn = psycopg2.connect(**conn_params)
+        # Use psycopg2.sql to safely quote table name
+        query = sql.SQL("SELECT * FROM {}").format(sql.Identifier(data['table']))
+        student_df = pd.read_sql(query.as_string(conn), conn)
         conn.close()
         student_df = student_df.fillna("")
         columns = student_df.columns.tolist()
+        
+        source_info['type'] = 'db'
+        source_info['params'] = conn_params
+        source_info['table'] = data['table']
+        
         return jsonify({
             "message": "Data fetched from database successfully",
             "columns": columns,
@@ -68,6 +77,10 @@ def upload_file():
             # Replace NaN with empty string for JSON serialization
             student_df = student_df.fillna("")
             columns = student_df.columns.tolist()
+            
+            source_info['type'] = 'excel'
+            source_info['path'] = filepath
+            
             return jsonify({
                 "message": "File uploaded successfully",
                 "columns": columns,
@@ -86,6 +99,17 @@ def get_data(index):
         return jsonify(row)
     else:
         return jsonify({"error": "Index out of range"}), 404
+
+@app.route('/get_image/<path:filename>')
+def get_image(filename):
+    # Search for image in the configured PHOTO_FOLDER or in root photos
+    save_path = app.config['PHOTO_FOLDER']
+    if os.path.exists(os.path.join(save_path, filename)):
+        return send_from_directory(save_path, filename)
+    elif os.path.exists(os.path.join('photos', filename)):
+        return send_from_directory('photos', filename)
+    else:
+        return send_from_directory('static/images', 'placeholder.jpg')
 
 @app.route('/authorize')
 def authorize():
@@ -187,6 +211,34 @@ def save_photo():
         full_path = os.path.join(save_path, filename)
         with open(full_path, 'wb') as f:
             f.write(final_image_bytes)
+            
+        # Update source if requested
+        update_col = data.get('update_column')
+        if update_col and student_df is not None:
+            idx = data.get('index')
+            if idx is not None:
+                student_df.at[idx, update_col] = filename
+                if source_info.get('type') == 'excel':
+                    student_df.to_excel(source_info['path'], index=False)
+                elif source_info.get('type') == 'db':
+                    try:
+                        conn = psycopg2.connect(**source_info['params'])
+                        cur = conn.cursor()
+                        id_col = student_df.columns[0]
+                        id_val = student_df.iloc[idx][id_col]
+                        
+                        update_query = sql.SQL("UPDATE {} SET {} = %s WHERE {} = %s").format(
+                            sql.Identifier(source_info['table']),
+                            sql.Identifier(update_col),
+                            sql.Identifier(id_col)
+                        )
+                        cur.execute(update_query, (filename, id_val))
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                    except Exception as e:
+                        print(f"DB update error: {e}")
+
         return jsonify({"message": f"Photo saved locally to {full_path}"})
 
 if __name__ == '__main__':

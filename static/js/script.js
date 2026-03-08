@@ -6,6 +6,10 @@ const canvas = document.getElementById('canvas');
 const studentDataDisplay = document.getElementById('studentDataDisplay');
 const recordStatus = document.getElementById('recordStatus');
 const fieldCheckboxes = document.getElementById('fieldCheckboxes');
+const tableHeader = document.getElementById('tableHeader');
+const tableBody = document.getElementById('tableBody');
+const tableFieldCheckboxes = document.getElementById('tableFieldCheckboxes');
+const updateColumnSelect = document.getElementById('updateColumn');
 
 // Camera setup
 async function startCamera() {
@@ -30,10 +34,24 @@ function updatePreviewSize() {
 
 // UI Toggles
 function showTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.sidebar .tab-content').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.sidebar .tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId).style.display = 'block';
     event.currentTarget.classList.add('active');
+}
+
+function showMainTab(tabId) {
+    document.getElementById('configView').style.display = tabId === 'configView' ? 'grid' : 'none';
+    const tableEl = document.getElementById('tableView');
+    tableEl.style.display = tabId === 'tableView' ? 'block' : 'none';
+    tableEl.dataset.active = tabId === 'tableView' ? 'true' : 'false';
+
+    // Manage tab active state
+    document.querySelectorAll('.main-tabs .tab-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('onclick').includes(tabId));
+    });
+
+    if (tabId === 'tableView') renderTableView();
 }
 
 function toggleDestination() {
@@ -45,6 +63,14 @@ function toggleDestination() {
 function toggleCompression() {
     const comp = document.getElementById('compression').value;
     document.getElementById('compressionSettings').style.display = comp === 'compressed' ? 'block' : 'none';
+}
+
+function updatePath(input) {
+    if (input.files.length > 0) {
+        // webkitRelativePath gives 'folder/file.txt', we want the folder
+        const path = input.files[0].webkitRelativePath.split('/')[0];
+        document.getElementById('savePath').value = path;
+    }
 }
 
 // Data Import
@@ -79,7 +105,31 @@ function handleImportResponse(data) {
     totalRecords = data.total;
     currentIndex = 0;
     renderFieldCheckboxes();
+    renderTableFieldCheckboxes();
+    populateUpdateColumn();
     fetchRecord(0);
+}
+
+function populateUpdateColumn() {
+    updateColumnSelect.innerHTML = '<option value="">(Don\'t Save to Source)</option>';
+    columns.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = col;
+        updateColumnSelect.appendChild(opt);
+    });
+}
+
+function renderTableFieldCheckboxes() {
+    tableFieldCheckboxes.innerHTML = '';
+    columns.forEach(col => {
+        const div = document.createElement('div');
+        div.className = 'field-item';
+        div.innerHTML = `
+            <input type="checkbox" name="tableField" value="${col}" onchange="renderTableView()">
+            <span>${col}</span>
+        `;
+        tableFieldCheckboxes.appendChild(div);
+    });
 }
 
 // Filename Field Sequencing
@@ -128,14 +178,117 @@ function displayRecord(data) {
 function nextRecord() { if (currentIndex < totalRecords - 1) fetchRecord(++currentIndex); }
 function prevRecord() { if (currentIndex > 0) fetchRecord(--currentIndex); }
 
+let allData = []; // Store all student records locally for table view
+async function fetchAllData() {
+    const records = [];
+    for(let i=0; i<totalRecords; i++) {
+        const res = await fetch(`/data/${i}`);
+        records.push(await res.json());
+    }
+    allData = records;
+}
+
+async function renderTableView() {
+    await fetchAllData();
+    const selected = Array.from(document.querySelectorAll('input[name="tableField"]:checked'))
+        .map(cb => cb.value)
+        .slice(0, 4);
+
+    // Update headers
+    tableHeader.innerHTML = '<th>Image</th>';
+    selected.forEach(col => {
+        const th = document.createElement('th');
+        th.textContent = col;
+        th.style.cursor = 'pointer';
+        th.onclick = () => sortTable(col);
+        tableHeader.appendChild(th);
+    });
+
+    renderTableRows(allData, selected);
+}
+
+function renderTableRows(data, selected) {
+    tableBody.innerHTML = '';
+    data.forEach((student, idx) => {
+        const tr = document.createElement('tr');
+
+        // Image cell
+        const imgTd = document.createElement('td');
+        const img = document.createElement('img');
+
+        // Find if a Photo/Image column has a value
+        const photoCol = columns.find(c => c.toLowerCase().includes('photo') || c.toLowerCase().includes('image'));
+        const photoFilename = photoCol ? student[photoCol] : null;
+
+        img.src = photoFilename ? `/get_image/${photoFilename}` : '/static/images/placeholder.jpg';
+        img.style.width = '60px';
+        img.style.height = '60px';
+        img.style.objectFit = 'cover';
+        img.style.cursor = 'pointer';
+        img.onerror = () => { img.src = '/static/images/placeholder.jpg'; };
+        img.onclick = () => goToCapture(idx);
+        imgTd.appendChild(img);
+        tr.appendChild(imgTd);
+
+        selected.forEach(col => {
+            const td = document.createElement('td');
+            td.textContent = student[col];
+            tr.appendChild(td);
+        });
+        tableBody.appendChild(tr);
+    });
+}
+
+function filterTable() {
+    const val = document.getElementById('tableFilter').value.toLowerCase();
+    const selected = Array.from(document.querySelectorAll('input[name="tableField"]:checked'))
+        .map(cb => cb.value)
+        .slice(0, 4);
+
+    const filtered = allData.filter(s =>
+        Object.values(s).some(v => String(v).toLowerCase().includes(val))
+    );
+    renderTableRows(filtered, selected);
+}
+
+let sortDir = 1;
+function sortTable(col) {
+    sortDir *= -1;
+    const selected = Array.from(document.querySelectorAll('input[name="tableField"]:checked'))
+        .map(cb => cb.value)
+        .slice(0, 4);
+
+    allData.sort((a, b) => {
+        if (a[col] < b[col]) return -1 * sortDir;
+        if (a[col] > b[col]) return 1 * sortDir;
+        return 0;
+    });
+    renderTableRows(allData, selected);
+}
+
+function goToCapture(idx) {
+    currentIndex = idx;
+    fetchRecord(currentIndex);
+    window.fromTable = true;
+    showMainTab('configView');
+}
+
 // Capture and Save
 async function authorizeDrive() {
     window.open('/authorize', '_blank');
 }
 
 async function capturePhoto() {
+    console.log("CapturePhoto called");
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    } catch (e) {
+        console.warn("Canvas draw error (possibly no video stream):", e);
+        // Just draw a colored rectangle for testing if video fails
+        ctx.fillStyle = "blue";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     const image = canvas.toDataURL('image/jpeg');
 
     // Filename sequence
@@ -164,13 +317,30 @@ async function capturePhoto() {
         target_size: document.getElementById('targetSize').value
     };
 
-    const res = await fetch('/save_photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-    });
-    const result = await res.json();
-    alert(result.message || result.error);
+    try {
+        const res = await fetch('/save_photo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...body,
+                index: currentIndex,
+                update_column: document.getElementById('updateColumn').value
+            })
+        });
+        const result = await res.json();
+        console.log("Save result:", result);
+        alert(result.message || result.error);
+
+        // If we were previously on Table View, navigate back
+        if (window.fromTable) {
+            console.log("Returning to table view");
+            window.fromTable = false;
+            showMainTab('tableView');
+        }
+    } catch (err) {
+        console.error("Save photo error:", err);
+        alert("Error saving photo.");
+    }
 }
 
 window.onload = () => {

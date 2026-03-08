@@ -14,7 +14,12 @@
             <p>Streamlined student data and photo management</p>
         </header>
 
-        <main class="grid-layout">
+        <div class="main-tabs" style="margin-bottom: 20px;">
+            <button class="tab-btn active" onclick="showMainTab('configView')">Configuration & Capture</button>
+            <button class="tab-btn" onclick="showMainTab('tableView')">Student Table View</button>
+        </div>
+
+        <main id="configView" class="grid-layout">
             <!-- Sidebar: Import and Config -->
             <aside class="sidebar">
                 <section class="card">
@@ -59,12 +64,25 @@
 
                     <div id="localDest" class="input-group">
                         <label>Folder Path:</label>
-                        <input type="text" id="savePath" value="photos">
+                        <div style="display: flex; gap: 5px;">
+                            <input type="text" id="savePath" value="photos">
+                            <input type="file" id="dirPicker" webkitdirectory directory style="display:none;" onchange="updatePath(this)">
+                            <button class="nav-btn" title="Browse Folder (Note: only works in modern browsers)" onclick="document.getElementById('dirPicker').click()">📁</button>
+                        </div>
+                        <p class="hint">Browser security may limit path selection. You can manually enter the server-side directory path.</p>
                     </div>
 
                     <div id="driveDest" class="input-group" style="display:none;">
                         <button class="secondary-btn" onclick="authorizeDrive()">Login to Google Drive</button>
                         <input type="text" id="driveFolderId" placeholder="Folder ID (Optional)">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Save Filename to Column:</label>
+                        <select id="updateColumn">
+                            <option value="">(Don't Save to Source)</option>
+                            <!-- Column names -->
+                        </select>
                     </div>
 
                     <div class="input-group">
@@ -118,6 +136,34 @@
                         <button class="capture-btn" onclick="capturePhoto()">Capture & Save</button>
                     </div>
                 </section>
+            </div>
+        </main>
+
+        <main id="tableView" class="card" style="display:none;">
+            <div class="table-controls" style="margin-bottom: 20px;">
+                <h3>Table Configuration</h3>
+                <p class="hint">Select up to 4 fields to display</p>
+                <div id="tableFieldCheckboxes" class="field-list" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <!-- Fields for table view -->
+                </div>
+            </div>
+
+            <div class="table-filters" style="margin-bottom: 20px; display: flex; gap: 10px;">
+                <input type="text" id="tableFilter" placeholder="Filter all fields..." onkeyup="filterTable()">
+            </div>
+
+            <div class="table-wrapper" style="overflow-x: auto;">
+                <table id="studentTable">
+                    <thead>
+                        <tr id="tableHeader">
+                            <th>Image</th>
+                            <!-- Dynamic headers -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Student rows -->
+                    </tbody>
+                </table>
             </div>
         </main>
     </div>

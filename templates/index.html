@@ -66,10 +66,8 @@
                         <label>Folder Path:</label>
                         <div style="display: flex; gap: 5px;">
                             <input type="text" id="savePath" value="photos">
-                            <input type="file" id="dirPicker" webkitdirectory directory style="display:none;" onchange="updatePath(this)">
-                            <button class="nav-btn" title="Browse Folder (Note: only works in modern browsers)" onclick="document.getElementById('dirPicker').click()">📁</button>
+                            <button class="nav-btn" title="Browse Folder on Server" onclick="browseFolder()">📁</button>
                         </div>
-                        <p class="hint">Browser security may limit path selection. You can manually enter the server-side directory path.</p>
                     </div>
 
                     <div id="driveDest" class="input-group" style="display:none;">
@@ -82,6 +80,14 @@
                         <select id="updateColumn">
                             <option value="">(Don't Save to Source)</option>
                             <!-- Column names -->
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>File Format:</label>
+                        <select id="imgFormat">
+                            <option value="JPEG">JPEG</option>
+                            <option value="PNG">PNG</option>
                         </select>
                     </div>
 
@@ -112,6 +118,9 @@
                     <div class="student-header">
                         <h2>4. Student Data</h2>
                         <div class="nav-controls">
+                            <label style="font-size: 0.8rem; margin-right: 5px;">
+                                <input type="checkbox" id="imagePendingFilter" onchange="applyRecordFilter()"> Image Pending
+                            </label>
                             <button class="nav-btn" onclick="prevRecord()">←</button>
                             <span id="recordStatus" class="badge">0 / 0</span>
                             <button class="nav-btn" onclick="nextRecord()">→</button>
@@ -141,15 +150,15 @@
 
         <main id="tableView" class="card" style="display:none;">
             <div class="table-controls" style="margin-bottom: 20px;">
-                <h3>Table Configuration</h3>
-                <p class="hint">Select up to 4 fields to display</p>
-                <div id="tableFieldCheckboxes" class="field-list" style="display: flex; flex-wrap: wrap; gap: 10px;">
-                    <!-- Fields for table view -->
+                <h3>Table Configuration & Filters</h3>
+                <div class="filter-row-container">
+                    <!-- 4 Dropdown Rows -->
+                    <div class="filter-row" id="filterRow1"></div>
+                    <div class="filter-row" id="filterRow2"></div>
+                    <div class="filter-row" id="filterRow3"></div>
+                    <div class="filter-row" id="filterRow4"></div>
                 </div>
-            </div>
-
-            <div class="table-filters" style="margin-bottom: 20px; display: flex; gap: 10px;">
-                <input type="text" id="tableFilter" placeholder="Filter all fields..." onkeyup="filterTable()">
+                <button class="primary-btn" style="margin-top: 15px; width: auto;" onclick="generateTable()">Generate Table</button>
             </div>
 
             <div class="table-wrapper" style="overflow-x: auto;">

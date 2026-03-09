@@ -10,7 +10,7 @@ from psycopg2 import sql
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google_auth_oauthlib.flow import Flow
-from flask import session, url_for, redirect
+from flask import session, url_for, redirect, send_file, abort
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key_for_dev')
@@ -89,6 +89,13 @@ def upload_file():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+@app.route('/data/all', methods=['GET'])
+def get_all_data():
+    global student_df
+    if student_df is None:
+        return jsonify({"error": "No data uploaded"}), 400
+    return jsonify(student_df.to_dict(orient='records'))
+
 @app.route('/data/<int:index>', methods=['GET'])
 def get_data(index):
     global student_df
@@ -102,7 +109,19 @@ def get_data(index):
 
 @app.route('/get_image/<path:filename>')
 def get_image(filename):
-    # Search for image in the configured PHOTO_FOLDER or in root photos
+    custom_path = request.args.get('path')
+
+    # Security check: Ensure the filename is just a name and path doesn't escape
+    if '..' in filename or (custom_path and '..' in custom_path):
+        abort(400, "Directory traversal not allowed")
+
+    if custom_path and os.path.isdir(custom_path):
+        # Additional safety: verify the file is actually inside the directory
+        full_path = os.path.abspath(os.path.join(custom_path, filename))
+        if full_path.startswith(os.path.abspath(custom_path)):
+            if os.path.exists(full_path):
+                return send_from_directory(custom_path, filename)
+
     save_path = app.config['PHOTO_FOLDER']
     if os.path.exists(os.path.join(save_path, filename)):
         return send_from_directory(save_path, filename)
@@ -110,6 +129,24 @@ def get_image(filename):
         return send_from_directory('photos', filename)
     else:
         return send_from_directory('static/images', 'placeholder.jpg')
+
+@app.route('/list_dirs', methods=['GET'])
+def list_dirs():
+    base = request.args.get('base')
+    if not base or base == 'undefined':
+        base = os.path.abspath('.')
+
+    if '..' in base: base = os.path.abspath('.')
+    try:
+        items = os.listdir(base)
+        dirs = [d for d in items if os.path.isdir(os.path.join(base, d))]
+        return jsonify({
+            "current": base,
+            "parent": os.path.dirname(base),
+            "dirs": sorted(dirs)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/authorize')
 def authorize():
@@ -166,9 +203,11 @@ def save_photo():
     image_bytes = base64.b64decode(image_data)
     img = Image.open(BytesIO(image_bytes))
 
-    filename = data.get('filename', 'photo.jpg')
+    fmt = data.get('format', 'JPEG').upper()
+    ext = '.png' if fmt == 'PNG' else '.jpg'
+    filename = data.get('filename', 'photo')
     if not filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        filename += '.jpg'
+        filename += ext
 
     # Handle Compression
     quality = 95
@@ -190,7 +229,11 @@ def save_photo():
                     high = mid - 1
 
     output = BytesIO()
-    img.save(output, format="JPEG", quality=quality)
+    img_format = 'PNG' if fmt == 'PNG' else 'JPEG'
+    if img_format == 'PNG':
+        img.save(output, format=img_format)
+    else:
+        img.save(output, format=img_format, quality=quality)
     final_image_bytes = output.getvalue()
 
     # Handle Destination

@@ -1,6 +1,9 @@
 let currentIndex = 0;
 let totalRecords = 0;
 let columns = [];
+let allData = []; // Store all student records locally
+let windowFromTable = false;
+
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const studentDataDisplay = document.getElementById('studentDataDisplay');
@@ -8,7 +11,6 @@ const recordStatus = document.getElementById('recordStatus');
 const fieldCheckboxes = document.getElementById('fieldCheckboxes');
 const tableHeader = document.getElementById('tableHeader');
 const tableBody = document.getElementById('tableBody');
-const tableFieldCheckboxes = document.getElementById('tableFieldCheckboxes');
 const updateColumnSelect = document.getElementById('updateColumn');
 
 // Camera setup
@@ -44,14 +46,10 @@ function showMainTab(tabId) {
     document.getElementById('configView').style.display = tabId === 'configView' ? 'grid' : 'none';
     const tableEl = document.getElementById('tableView');
     tableEl.style.display = tabId === 'tableView' ? 'block' : 'none';
-    tableEl.dataset.active = tabId === 'tableView' ? 'true' : 'false';
 
-    // Manage tab active state
     document.querySelectorAll('.main-tabs .tab-btn').forEach(b => {
         b.classList.toggle('active', b.getAttribute('onclick').includes(tabId));
     });
-
-    if (tabId === 'tableView') renderTableView();
 }
 
 function toggleDestination() {
@@ -65,12 +63,38 @@ function toggleCompression() {
     document.getElementById('compressionSettings').style.display = comp === 'compressed' ? 'block' : 'none';
 }
 
-function updatePath(input) {
-    if (input.files.length > 0) {
-        // webkitRelativePath gives 'folder/file.txt', we want the folder
-        const path = input.files[0].webkitRelativePath.split('/')[0];
-        document.getElementById('savePath').value = path;
+async function browseFolder(base = '') {
+    const res = await fetch(`/list_dirs?base=${encodeURIComponent(base)}`);
+    const data = await res.json();
+    if (data.error) return alert(data.error);
+
+    let modal = document.getElementById('dirModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'dirModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
     }
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content card">
+            <h3>Select Folder</h3>
+            <p><strong>Current:</strong> ${data.current}</p>
+            <div class="dir-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem;">
+                <div class="dir-item" onclick="browseFolder('${data.parent}')">📁 .. [Up]</div>
+                ${data.dirs.map(d => `<div class="dir-item" onclick="browseFolder('${data.current}/${d}')">📁 ${d}</div>`).join('')}
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="primary-btn" onclick="confirmDir('${data.current}')">Select This Folder</button>
+                <button class="secondary-btn" onclick="document.getElementById('dirModal').style.display='none'">Cancel</button>
+            </div>
+        </div>
+    `;
+}
+
+function confirmDir(path) {
+    document.getElementById('savePath').value = path;
+    document.getElementById('dirModal').style.display = 'none';
 }
 
 // Data Import
@@ -105,9 +129,9 @@ function handleImportResponse(data) {
     totalRecords = data.total;
     currentIndex = 0;
     renderFieldCheckboxes();
-    renderTableFieldCheckboxes();
+    renderFilterRows();
     populateUpdateColumn();
-    fetchRecord(0);
+    fetchAllData().then(() => fetchRecord(0));
 }
 
 function populateUpdateColumn() {
@@ -119,16 +143,40 @@ function populateUpdateColumn() {
     });
 }
 
-function renderTableFieldCheckboxes() {
-    tableFieldCheckboxes.innerHTML = '';
-    columns.forEach(col => {
-        const div = document.createElement('div');
-        div.className = 'field-item';
-        div.innerHTML = `
-            <input type="checkbox" name="tableField" value="${col}" onchange="renderTableView()">
-            <span>${col}</span>
+function renderFilterRows() {
+    for (let i = 1; i <= 4; i++) {
+        const row = document.getElementById(`filterRow${i}`);
+        row.innerHTML = `
+            <div class="filter-row-item">
+                <select id="fieldSelect${i}" onchange="updateUniqueValues(${i})">
+                    <option value="">Select Field ${i}</option>
+                    ${columns.map(c => `<option value="${c}">${c}</option>`).join('')}
+                </select>
+                <select id="valueSelect${i}">
+                    <option value="">All Values</option>
+                </select>
+                <select id="sortSelect${i}">
+                    <option value="">No Sort</option>
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                </select>
+            </div>
         `;
-        tableFieldCheckboxes.appendChild(div);
+    }
+}
+
+async function updateUniqueValues(rowIdx) {
+    const field = document.getElementById(`fieldSelect${rowIdx}`).value;
+    const valSelect = document.getElementById(`valueSelect${rowIdx}`);
+    valSelect.innerHTML = '<option value="">All Values</option>';
+
+    if (!field) return;
+
+    const uniqueVals = [...new Set(allData.map(s => s[field]))].filter(v => v !== null && v !== "");
+    uniqueVals.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = v;
+        valSelect.appendChild(opt);
     });
 }
 
@@ -157,10 +205,12 @@ function updateSequenceInputs() {
 
 // Navigation
 async function fetchRecord(idx) {
+    if (idx < 0 || idx >= totalRecords) return;
     const res = await fetch(`/data/${idx}`);
     const data = await res.json();
     displayRecord(data);
     recordStatus.innerText = `${idx + 1} / ${totalRecords}`;
+    currentIndex = idx;
 }
 
 function displayRecord(data) {
@@ -175,58 +225,115 @@ function displayRecord(data) {
     }
 }
 
-function nextRecord() { if (currentIndex < totalRecords - 1) fetchRecord(++currentIndex); }
-function prevRecord() { if (currentIndex > 0) fetchRecord(--currentIndex); }
-
-let allData = []; // Store all student records locally for table view
-async function fetchAllData() {
-    const records = [];
-    for(let i=0; i<totalRecords; i++) {
-        const res = await fetch(`/data/${i}`);
-        records.push(await res.json());
+async function applyRecordFilter() {
+    const filterPending = document.getElementById('imagePendingFilter').checked;
+    if (filterPending) {
+        const photoCol = columns.find(c => c.toLowerCase().includes('photo') || c.toLowerCase().includes('image'));
+        if (photoCol) {
+            let found = false;
+            for (let i = currentIndex; i < totalRecords; i++) {
+                if (!allData[i][photoCol]) {
+                    currentIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                 for (let i = 0; i < currentIndex; i++) {
+                    if (!allData[i][photoCol]) {
+                        currentIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) alert("No more pending images found.");
+        }
     }
-    allData = records;
+    fetchRecord(currentIndex);
 }
 
-async function renderTableView() {
-    await fetchAllData();
-    const selected = Array.from(document.querySelectorAll('input[name="tableField"]:checked'))
-        .map(cb => cb.value)
-        .slice(0, 4);
+function nextRecord() {
+    if (currentIndex < totalRecords - 1) {
+        currentIndex++;
+        if (document.getElementById('imagePendingFilter').checked) applyRecordFilter();
+        else fetchRecord(currentIndex);
+    }
+}
 
-    // Update headers
+function prevRecord() {
+    if (currentIndex > 0) {
+        currentIndex--;
+        if (document.getElementById('imagePendingFilter').checked) applyRecordFilter();
+        else fetchRecord(currentIndex);
+    }
+}
+
+async function fetchAllData() {
+    const res = await fetch('/data/all');
+    allData = await res.json();
+}
+
+async function generateTable() {
+    let displayData = [...allData];
+    const selectedCols = [];
+
+    for (let i = 1; i <= 4; i++) {
+        const field = document.getElementById(`fieldSelect${i}`).value;
+        const value = document.getElementById(`valueSelect${i}`).value;
+        const sort = document.getElementById(`sortSelect${i}`).value;
+
+        if (field) {
+            selectedCols.push(field);
+            if (value) {
+                displayData = displayData.filter(s => String(s[field]) === value);
+            }
+            if (sort) {
+                displayData.sort((a, b) => {
+                    if (a[field] < b[field]) return sort === 'asc' ? -1 : 1;
+                    if (a[field] > b[field]) return sort === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+        }
+    }
+
     tableHeader.innerHTML = '<th>Image</th>';
-    selected.forEach(col => {
+    selectedCols.forEach(col => {
         const th = document.createElement('th');
         th.textContent = col;
-        th.style.cursor = 'pointer';
-        th.onclick = () => sortTable(col);
         tableHeader.appendChild(th);
     });
 
-    renderTableRows(allData, selected);
+    renderTableRows(displayData, selectedCols);
 }
 
 function renderTableRows(data, selected) {
     tableBody.innerHTML = '';
-    data.forEach((student, idx) => {
+    const customSavePath = document.getElementById('savePath').value;
+
+    data.forEach((student) => {
+        const realIdx = allData.findIndex(s => JSON.stringify(s) === JSON.stringify(student));
         const tr = document.createElement('tr');
 
-        // Image cell
         const imgTd = document.createElement('td');
         const img = document.createElement('img');
 
-        // Find if a Photo/Image column has a value
         const photoCol = columns.find(c => c.toLowerCase().includes('photo') || c.toLowerCase().includes('image'));
         const photoFilename = photoCol ? student[photoCol] : null;
 
-        img.src = photoFilename ? `/get_image/${photoFilename}` : '/static/images/placeholder.jpg';
+        let imgSrc = '/static/images/placeholder.jpg';
+        if (photoFilename) {
+            imgSrc = `/get_image/${photoFilename}?path=${encodeURIComponent(customSavePath)}`;
+        }
+
+        img.src = imgSrc;
         img.style.width = '60px';
         img.style.height = '60px';
         img.style.objectFit = 'cover';
         img.style.cursor = 'pointer';
         img.onerror = () => { img.src = '/static/images/placeholder.jpg'; };
-        img.onclick = () => goToCapture(idx);
+        img.onclick = () => goToCapture(realIdx);
         imgTd.appendChild(img);
         tr.appendChild(imgTd);
 
@@ -239,37 +346,10 @@ function renderTableRows(data, selected) {
     });
 }
 
-function filterTable() {
-    const val = document.getElementById('tableFilter').value.toLowerCase();
-    const selected = Array.from(document.querySelectorAll('input[name="tableField"]:checked'))
-        .map(cb => cb.value)
-        .slice(0, 4);
-
-    const filtered = allData.filter(s =>
-        Object.values(s).some(v => String(v).toLowerCase().includes(val))
-    );
-    renderTableRows(filtered, selected);
-}
-
-let sortDir = 1;
-function sortTable(col) {
-    sortDir *= -1;
-    const selected = Array.from(document.querySelectorAll('input[name="tableField"]:checked'))
-        .map(cb => cb.value)
-        .slice(0, 4);
-
-    allData.sort((a, b) => {
-        if (a[col] < b[col]) return -1 * sortDir;
-        if (a[col] > b[col]) return 1 * sortDir;
-        return 0;
-    });
-    renderTableRows(allData, selected);
-}
-
 function goToCapture(idx) {
     currentIndex = idx;
     fetchRecord(currentIndex);
-    window.fromTable = true;
+    windowFromTable = true;
     showMainTab('configView');
 }
 
@@ -279,19 +359,15 @@ async function authorizeDrive() {
 }
 
 async function capturePhoto() {
-    console.log("CapturePhoto called");
     const ctx = canvas.getContext('2d');
     try {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     } catch (e) {
-        console.warn("Canvas draw error (possibly no video stream):", e);
-        // Just draw a colored rectangle for testing if video fails
         ctx.fillStyle = "blue";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     const image = canvas.toDataURL('image/jpeg');
 
-    // Filename sequence
     const selected = Array.from(document.querySelectorAll('input[name="field"]:checked'))
         .map(cb => ({
             name: cb.value,
@@ -301,45 +377,40 @@ async function capturePhoto() {
 
     if (selected.length === 0) return alert("Select filename fields");
 
-    const resRecord = await fetch(`/data/${currentIndex}`);
-    const student = await resRecord.json();
-    let filename = selected.map(s => student[s.name]).join('_') + '.jpg';
+    const student = allData[currentIndex];
+    let filename = selected.map(s => student[s.name]).join('_');
     filename = filename.replace(/[^a-z0-9._-]/gi, '_');
 
     const body = {
         image,
         filename,
+        format: document.getElementById('imgFormat').value,
         destination: document.getElementById('destination').value,
         save_path: document.getElementById('savePath').value,
         drive_folder_id: document.getElementById('driveFolderId').value,
         compression: document.getElementById('compression').value,
         quality: document.getElementById('imgQuality').value,
-        target_size: document.getElementById('targetSize').value
+        target_size: document.getElementById('targetSize').value,
+        index: currentIndex,
+        update_column: document.getElementById('updateColumn').value
     };
 
     try {
         const res = await fetch('/save_photo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...body,
-                index: currentIndex,
-                update_column: document.getElementById('updateColumn').value
-            })
+            body: JSON.stringify(body)
         });
         const result = await res.json();
-        console.log("Save result:", result);
         alert(result.message || result.error);
 
-        // If we were previously on Table View, navigate back
-        if (window.fromTable) {
-            console.log("Returning to table view");
-            window.fromTable = false;
+        if (windowFromTable) {
+            windowFromTable = false;
             showMainTab('tableView');
+            generateTable(); // Refresh table
         }
     } catch (err) {
         console.error("Save photo error:", err);
-        alert("Error saving photo.");
     }
 }
 

@@ -1,38 +1,41 @@
-# ID Card Photo Manager
+# ID Card Photo Manager Pro
 
-A Flask-based application to import student data from Excel and capture photos via a webcam or phone camera.
+A comprehensive Flask-based application to manage student data and automate photo capturing for ID cards.
 
 ## Features
-- Import student data from Excel (`.xlsx`, `.xls`).
-- Browse student records using Next/Previous navigation buttons.
-- Capture photos with a square (adjustable) preview window.
-- Set image filenames using a combination of data fields (e.g., ID_Name.jpg).
-- Choose a custom directory to save photos.
+- **Flexible Data Sources:** Import student data from Excel files or directly from a **PostgreSQL** database.
+- **Smart Filename Generation:** Combine multiple data fields (e.g., ID, Name) in a user-defined sequence to generate unique image filenames.
+- **Adjustable Camera Preview:** Real-time webcam/phone camera preview with customizable dimensions (square by default).
+- **Dual Storage Options:** Save photos to a local server directory or directly to **Google Drive**.
+- **Advanced Image Processing:** Supports JPEG/PNG formats with optional **image compression** and target file size (KB) optimization.
+- **Student Table View:** A powerful grid view to browse all students, apply up to **4-level filtering and sorting**, and quickly identify records missing photos.
+- **Source Syncing:** Automatically save the generated filenames back to the original Excel file or PostgreSQL database.
+- **Secure and Fast:** Includes directory traversal protection, SQL injection prevention, and optimized data loading.
 
 ## Setup Instructions
 
 1. **Install Dependencies:**
-   Ensure you have Python installed. Then, run the following command to install required packages:
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Configure Google Drive (Optional):**
-   If you wish to use Google Drive storage, you must provide a `client_secrets.json` file in the root directory.
+2. **Database Setup (Optional):**
+   Ensure your PostgreSQL server is running if you intend to fetch data from a database.
 
-3. **Run the Application:**
-   Start the Flask server by running:
+3. **Google Drive Integration (Optional):**
+   Place your `client_secrets.json` in the root directory and click "Authorize" in the app settings to link your account.
+
+4. **Run the Application:**
    ```bash
    python app.py
    ```
 
-4. **Access the App:**
-   Open your browser and go to `http://localhost:5000`.
+5. **Access the App:**
+   Navigate to `http://localhost:5000` in your web browser.
 
 ## Usage
-1. Upload your student data Excel file.
-2. Configure the preview window size (width and height).
-3. Select the fields you want to use for the photo filename (e.g., ID and Name).
-4. Specify the directory where you want to save the captured photos.
-5. Use the navigation buttons to browse student records.
-6. Click "Capture & Save Photo" to save the photo for the current student.
+1. **Import Data:** Use the sidebar to upload an Excel file or connect to a PostgreSQL database.
+2. **Configure Filename:** Check the fields you want in the filename and assign their sequence (e.g., 1 for ID, 2 for Name).
+3. **Set Destination:** Use the Folder Browse button to select a local directory or set up Google Drive.
+4. **Capture:** Use the "Next/Previous" buttons or the "Student Table View" to select a student, adjust camera settings, and click "Capture & Save".
+5. **Filters:** In the Table View, use the multi-level selects to filter by specific classes, sections, or missing photos.

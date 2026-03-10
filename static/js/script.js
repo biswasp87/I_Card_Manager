@@ -35,6 +35,17 @@ function updatePreviewSize() {
 }
 
 // UI Toggles
+function showSubTab(containerId, tabId) {
+    const container = document.getElementById(containerId);
+    const contents = container.parentElement.querySelectorAll(':scope > .sub-tab-content');
+    contents.forEach(t => t.style.display = 'none');
+
+    container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+    document.getElementById(tabId).style.display = 'block';
+    event.currentTarget.classList.add('active');
+}
+
 function showTab(tabId) {
     document.querySelectorAll('.sidebar .tab-content').forEach(t => t.style.display = 'none');
     document.querySelectorAll('.sidebar .tab-btn').forEach(b => b.classList.remove('active'));
@@ -98,29 +109,69 @@ function confirmDir(path) {
 }
 
 // Data Import
-async function uploadExcel() {
-    const file = document.getElementById('excelFile').files[0];
-    if (!file) return alert("Select file");
+async function createProject(sourceType) {
+    const projectName = document.getElementById('projectName').value;
+    if (!projectName) return alert("Please enter a project name");
+
     const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch('/upload', { method: 'POST', body: formData });
+    formData.append('projectName', projectName);
+    formData.append('sourceType', sourceType);
+
+    if (sourceType === 'excel') {
+        const file = document.getElementById('excelFile').files[0];
+        if (!file) return alert("Select Excel file");
+        formData.append('file', file);
+    } else {
+        formData.append('host', document.getElementById('dbHost').value || 'localhost');
+        formData.append('database', document.getElementById('dbName').value);
+        formData.append('user', document.getElementById('dbUser').value);
+        formData.append('password', document.getElementById('dbPass').value);
+        formData.append('table', document.getElementById('dbTable').value);
+    }
+
+    const res = await fetch('/create_project', { method: 'POST', body: formData });
     handleImportResponse(await res.json());
 }
 
-async function fetchFromDB() {
-    const data = {
-        host: document.getElementById('dbHost').value || 'localhost',
-        database: document.getElementById('dbName').value,
-        user: document.getElementById('dbUser').value,
-        password: document.getElementById('dbPass').value,
-        table: document.getElementById('dbTable').value
-    };
-    const res = await fetch('/fetch_db', {
+async function fetchProjects() {
+    const res = await fetch('/list_projects');
+    const projects = await res.json();
+    const list = document.getElementById('projectList');
+    list.innerHTML = '';
+
+    projects.forEach(name => {
+        const div = document.createElement('div');
+        div.className = 'project-item';
+        div.innerHTML = `
+            <span>${name}</span>
+            <div class="action-btns">
+                <button class="small-btn load-btn" onclick="loadProject('${name}')">Load</button>
+                <button class="small-btn delete-btn" onclick="deleteProject('${name}')">Delete</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+async function loadProject(name) {
+    const res = await fetch('/load_project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ projectName: name })
     });
     handleImportResponse(await res.json());
+}
+
+async function deleteProject(name) {
+    if (!confirm(`Delete project ${name}?`)) return;
+    const res = await fetch('/delete_project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectName: name })
+    });
+    const result = await res.json();
+    alert(result.message || result.error);
+    fetchProjects();
 }
 
 function handleImportResponse(data) {

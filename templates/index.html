@@ -23,24 +23,42 @@
             <!-- Sidebar: Import and Config -->
             <aside class="sidebar">
                 <section class="card">
-                    <h2>1. Import Data</h2>
-                    <div class="tabs">
-                        <button class="tab-btn active" onclick="showTab('excelTab')">Excel</button>
-                        <button class="tab-btn" onclick="showTab('dbTab')">PostgreSQL</button>
+                    <h2>1. Manage Project</h2>
+                    <div class="tabs" id="projectManageTabs">
+                        <button class="tab-btn active" onclick="showSubTab('projectManageTabs', 'newProjectTab')">New Project</button>
+                        <button class="tab-btn" onclick="showSubTab('projectManageTabs', 'loadProjectTab'); fetchProjects();">Load Project</button>
                     </div>
 
-                    <div id="excelTab" class="tab-content">
-                        <input type="file" id="excelFile" accept=".xlsx, .xls">
-                        <button class="primary-btn" onclick="uploadExcel()">Upload Excel</button>
+                    <div id="newProjectTab" class="sub-tab-content">
+                        <div class="input-group">
+                            <label>Project Name:</label>
+                            <input type="text" id="projectName" placeholder="Enter Project Name">
+                        </div>
+
+                        <div class="tabs" id="importSourceTabs">
+                            <button class="tab-btn active" onclick="showSubTab('importSourceTabs', 'excelTab')">Excel</button>
+                            <button class="tab-btn" onclick="showSubTab('importSourceTabs', 'dbTab')">PostgreSQL</button>
+                        </div>
+
+                        <div id="excelTab" class="sub-tab-content">
+                            <input type="file" id="excelFile" accept=".xlsx, .xls">
+                            <button class="primary-btn" onclick="createProject('excel')">Upload & Create</button>
+                        </div>
+
+                        <div id="dbTab" class="sub-tab-content" style="display:none;">
+                            <input type="text" id="dbHost" placeholder="Host (localhost)">
+                            <input type="text" id="dbName" placeholder="Database Name">
+                            <input type="text" id="dbUser" placeholder="User">
+                            <input type="password" id="dbPass" placeholder="Password">
+                            <input type="text" id="dbTable" placeholder="Table Name">
+                            <button class="primary-btn" onclick="createProject('db')">Connect & Create</button>
+                        </div>
                     </div>
 
-                    <div id="dbTab" class="tab-content" style="display:none;">
-                        <input type="text" id="dbHost" placeholder="Host (localhost)">
-                        <input type="text" id="dbName" placeholder="Database Name">
-                        <input type="text" id="dbUser" placeholder="User">
-                        <input type="password" id="dbPass" placeholder="Password">
-                        <input type="text" id="dbTable" placeholder="Table Name">
-                        <button class="primary-btn" onclick="fetchFromDB()">Connect & Fetch</button>
+                    <div id="loadProjectTab" class="sub-tab-content" style="display:none;">
+                        <div id="projectList" class="project-list" style="margin-top: 10px;">
+                            <!-- Projects will be listed here -->
+                        </div>
                     </div>
                 </section>
 

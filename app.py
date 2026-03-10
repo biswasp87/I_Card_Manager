@@ -11,6 +11,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google_auth_oauthlib.flow import Flow
 from flask import session, url_for, redirect, send_file, abort
+from google.cloud import bigquery, storage
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key_for_dev')
@@ -24,6 +25,14 @@ os.makedirs(app.config['PHOTO_FOLDER'], exist_ok=True)
 # Global variable to store student data
 student_df = None
 source_info = {}
+current_project = None
+
+# Google Cloud Clients
+def get_bq_client():
+    return bigquery.Client()
+
+def get_storage_client():
+    return storage.Client()
 
 @app.route('/')
 def index():
@@ -58,6 +67,130 @@ def fetch_db():
             "columns": columns,
             "total": len(student_df)
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/create_project', methods=['POST'])
+def create_project():
+    global student_df, current_project, source_info
+
+    project_name = request.form.get('projectName')
+    source_type = request.form.get('sourceType')
+
+    if not project_name:
+        return jsonify({"error": "Project name is required"}), 400
+
+    # Sanitize project name for BigQuery table (letters, numbers, underscores)
+    safe_project_name = "".join([c if c.isalnum() else "_" for c in project_name])
+
+    # 1. Fetch Data
+    temp_df = None
+    if source_type == 'excel':
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+        file = request.files['file']
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(filepath)
+        temp_df = pd.read_excel(filepath)
+    elif source_type == 'db':
+        try:
+            conn_params = {
+                'host': request.form.get('host'),
+                'database': request.form.get('database'),
+                'user': request.form.get('user'),
+                'password': request.form.get('password'),
+                'port': request.form.get('port', 5432)
+            }
+            conn = psycopg2.connect(**conn_params)
+            query = sql.SQL("SELECT * FROM {}").format(sql.Identifier(request.form.get('table')))
+            temp_df = pd.read_sql(query.as_string(conn), conn)
+            conn.close()
+            source_info['params'] = conn_params
+            source_info['table'] = request.form.get('table')
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    if temp_df is None:
+        return jsonify({"error": "Failed to load data"}), 400
+
+    temp_df = temp_df.fillna("")
+    if 'Image Link' not in temp_df.columns:
+        temp_df['Image Link'] = ""
+
+    # 2. Setup BigQuery
+    bq_client = get_bq_client()
+    dataset_id = "I_Card_Manage"
+    dataset_ref = bq_client.dataset(dataset_id)
+    try:
+        bq_client.get_dataset(dataset_ref)
+    except Exception:
+        bq_client.create_dataset(bigquery.Dataset(dataset_ref))
+
+    table_id = f"{bq_client.project}.{dataset_id}.{safe_project_name}"
+    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+    bq_client.load_table_from_dataframe(temp_df, table_id, job_config=job_config).result()
+
+    # 3. Setup GCS
+    storage_client = get_storage_client()
+    bucket_name = "I_Card_Manager"
+    try:
+        bucket = storage_client.get_bucket(bucket_name)
+    except Exception:
+        bucket = storage_client.create_bucket(bucket_name)
+
+    # Create virtual folder by adding an empty object with trailing slash
+    blob = bucket.blob(f"{safe_project_name}/")
+    blob.upload_from_string('')
+
+    student_df = temp_df
+    current_project = safe_project_name
+    source_info['type'] = source_type
+
+    return jsonify({
+        "message": f"Project '{project_name}' created successfully",
+        "columns": student_df.columns.tolist(),
+        "total": len(student_df)
+    })
+
+@app.route('/list_projects', methods=['GET'])
+def list_projects():
+    bq_client = get_bq_client()
+    dataset_id = "I_Card_Manage"
+    try:
+        tables = bq_client.list_tables(dataset_id)
+        return jsonify([t.table_id for t in tables])
+    except Exception as e:
+        return jsonify([])
+
+@app.route('/load_project', methods=['POST'])
+def load_project():
+    global student_df, current_project
+    bq_client = get_bq_client()
+    project_id = request.json.get('projectName')
+    dataset_id = "I_Card_Manage"
+    table_id = f"{bq_client.project}.{dataset_id}.{project_id}"
+
+    try:
+        student_df = bq_client.query(f"SELECT * FROM `{table_id}`").to_dataframe()
+        student_df = student_df.fillna("")
+        current_project = project_id
+        return jsonify({
+            "message": f"Project '{project_id}' loaded",
+            "columns": student_df.columns.tolist(),
+            "total": len(student_df)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/delete_project', methods=['POST'])
+def delete_project():
+    bq_client = get_bq_client()
+    project_id = request.json.get('projectName')
+    dataset_id = "I_Card_Manage"
+    table_id = f"{bq_client.project}.{dataset_id}.{project_id}"
+    try:
+        bq_client.delete_table(table_id, not_found_ok=True)
+        return jsonify({"message": f"Project '{project_id}' deleted"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -133,16 +266,23 @@ def get_image(filename):
 @app.route('/list_dirs', methods=['GET'])
 def list_dirs():
     base = request.args.get('base')
-    if not base or base == 'undefined':
-        base = os.path.abspath('.')
+    app_root = os.path.abspath('.')
 
-    if '..' in base: base = os.path.abspath('.')
+    if not base or base == 'undefined':
+        base = app_root
+    else:
+        base = os.path.abspath(base)
+
+    # Restrict browsing to the app root and its subdirectories
+    if not base.startswith(app_root):
+        base = app_root
+
     try:
         items = os.listdir(base)
         dirs = [d for d in items if os.path.isdir(os.path.join(base, d))]
         return jsonify({
             "current": base,
-            "parent": os.path.dirname(base),
+            "parent": os.path.dirname(base) if base != app_root else app_root,
             "dirs": sorted(dirs)
         })
     except Exception as e:
@@ -198,6 +338,12 @@ def save_photo():
     data = request.json
     if not data or 'image' not in data:
         return jsonify({"error": "No image data"}), 400
+
+    idx = data.get('index')
+    if student_df is None:
+         return jsonify({"error": "No student data loaded"}), 400
+    if idx is None or not (0 <= idx < len(student_df)):
+         return jsonify({"error": "Invalid student index"}), 400
 
     image_data = data['image'].split(',')[1]
     image_bytes = base64.b64decode(image_data)
@@ -281,6 +427,40 @@ def save_photo():
                         conn.close()
                     except Exception as e:
                         print(f"DB update error: {e}")
+
+        # Upload to GCS if project is active
+        if current_project:
+            try:
+                storage_client = get_storage_client()
+                bq_client = get_bq_client()
+                bucket = storage_client.get_bucket("I_Card_Manager")
+                gcs_path = f"{current_project}/{filename}"
+                blob = bucket.blob(gcs_path)
+                blob.upload_from_string(final_image_bytes, content_type=f"image/{img_format.lower()}")
+
+                # Update BigQuery
+                dataset_id = "I_Card_Manage"
+                table_id = f"{bq_client.project}.{dataset_id}.{current_project}"
+                image_link = f"https://storage.googleapis.com/I_Card_Manager/{gcs_path}"
+
+                id_col = student_df.columns[0]
+                id_val = student_df.iloc[idx][id_col]
+
+                query = f"""
+                    UPDATE `{table_id}`
+                    SET `Image Link` = @image_link
+                    WHERE `{id_col}` = @id_val
+                """
+                job_config = bigquery.QueryJobConfig(
+                    query_parameters=[
+                        bigquery.ScalarQueryParameter("image_link", "STRING", image_link),
+                        bigquery.ScalarQueryParameter("id_val", "STRING", str(id_val)),
+                    ]
+                )
+                bq_client.query(query, job_config=job_config).result()
+                student_df.at[idx, 'Image Link'] = image_link
+            except Exception as e:
+                print(f"GCS/BQ Update Error: {e}")
 
         return jsonify({"message": f"Photo saved locally to {full_path}"})
 

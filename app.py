@@ -446,6 +446,16 @@ def save_photo():
                 id_col = student_df.columns[0]
                 id_val = student_df.iloc[idx][id_col]
 
+                # Determine correct BigQuery type for ID column to avoid 400 mismatch error
+                bq_type = "STRING"
+                param_val = str(id_val)
+                if pd.api.types.is_integer_dtype(student_df[id_col]):
+                    bq_type = "INT64"
+                    param_val = int(id_val)
+                elif pd.api.types.is_float_dtype(student_df[id_col]):
+                    bq_type = "FLOAT64"
+                    param_val = float(id_val)
+
                 query = f"""
                     UPDATE `{table_id}`
                     SET `Image Link` = @image_link
@@ -454,7 +464,7 @@ def save_photo():
                 job_config = bigquery.QueryJobConfig(
                     query_parameters=[
                         bigquery.ScalarQueryParameter("image_link", "STRING", image_link),
-                        bigquery.ScalarQueryParameter("id_val", "STRING", str(id_val)),
+                        bigquery.ScalarQueryParameter("id_val", bq_type, param_val),
                     ]
                 )
                 bq_client.query(query, job_config=job_config).result()

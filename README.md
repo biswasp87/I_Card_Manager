@@ -34,8 +34,7 @@ A comprehensive Flask-based application to manage student data and automate phot
    Navigate to `http://localhost:5000` in your web browser.
 
 ## Usage
-1. **Import Data:** Use the sidebar to upload an Excel file or connect to a PostgreSQL database.
-2. **Configure Filename:** Check the fields you want in the filename and assign their sequence (e.g., 1 for ID, 2 for Name).
-3. **Set Destination:** Use the Folder Browse button to select a local directory or set up Google Drive.
-4. **Capture:** Use the "Next/Previous" buttons or the "Student Table View" to select a student, adjust camera settings, and click "Capture & Save".
-5. **Filters:** In the Table View, use the multi-level selects to filter by specific classes, sections, or missing photos.
+1. **Manage Project:** Use the sidebar to create a new project by uploading an Excel file or connecting to a PostgreSQL database. You can also load existing projects.
+2. **Configure Filename:** Select up to 4 fields from the dropdowns to determine the sequence of values in the image filename.
+3. **Capture:** Use the "Next/Previous" buttons or the "Student Table View" to select a student, adjust camera settings, and click "Capture & Save". Photos are automatically synced to Google Cloud Storage and BigQuery.
+4. **Filters:** In the Table View, use the multi-level selects to filter by specific classes, sections, or missing photos.

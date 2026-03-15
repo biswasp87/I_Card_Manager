@@ -7,9 +7,6 @@ from PIL import Image
 import json
 import psycopg2
 from psycopg2 import sql
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-from google_auth_oauthlib.flow import Flow
 from flask import session, url_for, redirect, send_file, abort
 from google.cloud import bigquery, storage
 
@@ -132,7 +129,7 @@ def create_project():
 
     # 3. Setup GCS
     storage_client = get_storage_client()
-    bucket_name = "I_Card_Manager"
+    bucket_name = f"icm-{bq_client.project}"
     try:
         bucket = storage_client.get_bucket(bucket_name)
     except Exception:
@@ -288,50 +285,6 @@ def list_dirs():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/authorize')
-def authorize():
-    flow = Flow.from_client_secrets_file(
-        'client_secrets.json',
-        scopes=['https://www.googleapis.com/auth/drive.file'],
-        redirect_uri=url_for('oauth2callback', _external=True)
-    )
-    authorization_url, state = flow.authorization_url(access_type='offline')
-    session['state'] = state
-    return redirect(authorization_url)
-
-@app.route('/oauth2callback')
-def oauth2callback():
-    state = session['state']
-    flow = Flow.from_client_secrets_file(
-        'client_secrets.json',
-        scopes=['https://www.googleapis.com/auth/drive.file'],
-        state=state,
-        redirect_uri=url_for('oauth2callback', _external=True)
-    )
-    flow.fetch_token(authorization_response=request.url)
-    credentials = flow.credentials
-    session['credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
-    return 'Authenticated successfully! You can close this window.'
-
-def upload_to_drive(image_bytes, filename, folder_id=None):
-    from google.oauth2.credentials import Credentials
-    creds = Credentials(**session['credentials'])
-    service = build('drive', 'v3', credentials=creds)
-
-    file_metadata = {'name': filename}
-    if folder_id:
-        file_metadata['parents'] = [folder_id]
-
-    media = MediaIoBaseUpload(BytesIO(image_bytes), mimetype='image/jpeg')
-    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-    return file.get('id')
 
 @app.route('/save_photo', methods=['POST'])
 def save_photo():
@@ -382,58 +335,46 @@ def save_photo():
         img.save(output, format=img_format, quality=quality)
     final_image_bytes = output.getvalue()
 
-    # Handle Destination
-    destination = data.get('destination', 'local')
-    if destination == 'google_drive':
-        if 'credentials' not in session:
-            return jsonify({"error": "Not authenticated with Google Drive"}), 401
-        try:
-            file_id = upload_to_drive(final_image_bytes, filename, data.get('drive_folder_id'))
-            return jsonify({"message": f"Photo saved to Google Drive (ID: {file_id})"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    else:
-        save_path = data.get('save_path', app.config['PHOTO_FOLDER'])
-        if not save_path:
-            save_path = app.config['PHOTO_FOLDER']
-        os.makedirs(save_path, exist_ok=True)
-        full_path = os.path.join(save_path, filename)
-        with open(full_path, 'wb') as f:
-            f.write(final_image_bytes)
+    # Save locally as fallback/cache
+    save_path = app.config['PHOTO_FOLDER']
+    os.makedirs(save_path, exist_ok=True)
+    full_path = os.path.join(save_path, filename)
+    with open(full_path, 'wb') as f:
+        f.write(final_image_bytes)
 
-        # Update source if requested
-        update_col = data.get('update_column')
-        if update_col and student_df is not None:
-            idx = data.get('index')
-            if idx is not None:
-                student_df.at[idx, update_col] = filename
-                if source_info.get('type') == 'excel':
-                    student_df.to_excel(source_info['path'], index=False)
-                elif source_info.get('type') == 'db':
-                    try:
-                        conn = psycopg2.connect(**source_info['params'])
-                        cur = conn.cursor()
-                        id_col = student_df.columns[0]
-                        id_val = student_df.iloc[idx][id_col]
+    # Update source if requested
+    update_col = data.get('update_column')
+    if update_col and student_df is not None:
+        if idx is not None:
+            student_df.at[idx, update_col] = filename
+            if source_info.get('type') == 'excel':
+                student_df.to_excel(source_info['path'], index=False)
+            elif source_info.get('type') == 'db':
+                try:
+                    conn = psycopg2.connect(**source_info['params'])
+                    cur = conn.cursor()
+                    id_col = student_df.columns[0]
+                    id_val = student_df.iloc[idx][id_col]
 
-                        update_query = sql.SQL("UPDATE {} SET {} = %s WHERE {} = %s").format(
-                            sql.Identifier(source_info['table']),
-                            sql.Identifier(update_col),
-                            sql.Identifier(id_col)
-                        )
-                        cur.execute(update_query, (filename, id_val))
-                        conn.commit()
-                        cur.close()
-                        conn.close()
-                    except Exception as e:
-                        print(f"DB update error: {e}")
+                    update_query = sql.SQL("UPDATE {} SET {} = %s WHERE {} = %s").format(
+                        sql.Identifier(source_info['table']),
+                        sql.Identifier(update_col),
+                        sql.Identifier(id_col)
+                    )
+                    cur.execute(update_query, (filename, id_val))
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as e:
+                    print(f"DB update error: {e}")
 
         # Upload to GCS if project is active
         if current_project:
             try:
                 storage_client = get_storage_client()
                 bq_client = get_bq_client()
-                bucket = storage_client.get_bucket("I_Card_Manager")
+                bucket_name = f"icm-{bq_client.project}"
+                bucket = storage_client.get_bucket(bucket_name)
                 gcs_path = f"{current_project}/{filename}"
                 blob = bucket.blob(gcs_path)
                 blob.upload_from_string(final_image_bytes, content_type=f"image/{img_format.lower()}")
@@ -441,7 +382,7 @@ def save_photo():
                 # Update BigQuery
                 dataset_id = "I_Card_Manage"
                 table_id = f"{bq_client.project}.{dataset_id}.{current_project}"
-                image_link = f"https://storage.googleapis.com/I_Card_Manager/{gcs_path}"
+                image_link = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
 
                 id_col = student_df.columns[0]
                 id_val = student_df.iloc[idx][id_col]

@@ -179,7 +179,7 @@ function handleImportResponse(data) {
     columns = data.columns;
     totalRecords = data.total;
     currentIndex = 0;
-    renderFieldCheckboxes();
+    renderFilenameDropdowns();
     renderFilterRows();
     populateUpdateColumn();
     fetchAllData().then(() => fetchRecord(0));
@@ -231,27 +231,17 @@ async function updateUniqueValues(rowIdx) {
     });
 }
 
-// Filename Field Sequencing
-function renderFieldCheckboxes() {
-    fieldCheckboxes.innerHTML = '';
-    columns.forEach(col => {
-        const div = document.createElement('div');
-        div.className = 'field-item';
-        div.innerHTML = `
-            <input type="checkbox" name="field" value="${col}" onchange="updateSequenceInputs()">
-            <span>${col}</span>
-            <input type="number" name="seq" data-field="${col}" class="seq-input" min="1" disabled>
-        `;
-        fieldCheckboxes.appendChild(div);
-    });
-}
-
-function updateSequenceInputs() {
-    document.querySelectorAll('input[name="field"]').forEach(cb => {
-        const seqInput = cb.parentElement.querySelector('.seq-input');
-        seqInput.disabled = !cb.checked;
-        if (!cb.checked) seqInput.value = '';
-    });
+// Filename Field Dropdowns
+function renderFilenameDropdowns() {
+    for (let i = 1; i <= 4; i++) {
+        const select = document.getElementById(`filenameField${i}`);
+        select.innerHTML = `<option value="">Select Field ${i}</option>`;
+        columns.forEach(col => {
+            const opt = document.createElement('option');
+            opt.value = opt.textContent = col;
+            select.appendChild(opt);
+        });
+    }
 }
 
 // Navigation
@@ -361,7 +351,6 @@ async function generateTable() {
 
 function renderTableRows(data, selected) {
     tableBody.innerHTML = '';
-    const customSavePath = document.getElementById('savePath').value;
 
     data.forEach((student) => {
         const realIdx = allData.findIndex(s => JSON.stringify(s) === JSON.stringify(student));
@@ -371,11 +360,15 @@ function renderTableRows(data, selected) {
         const img = document.createElement('img');
 
         const photoCol = columns.find(c => c.toLowerCase().includes('photo') || c.toLowerCase().includes('image'));
-        const photoFilename = photoCol ? student[photoCol] : null;
+        const photoVal = photoCol ? student[photoCol] : null;
 
         let imgSrc = '/static/images/placeholder.jpg';
-        if (photoFilename) {
-            imgSrc = `/get_image/${photoFilename}?path=${encodeURIComponent(customSavePath)}`;
+        if (photoVal) {
+            if (photoVal.startsWith('http')) {
+                imgSrc = photoVal;
+            } else {
+                imgSrc = `/get_image/${photoVal}`;
+            }
         }
 
         img.src = imgSrc;
@@ -419,26 +412,22 @@ async function capturePhoto() {
     }
     const image = canvas.toDataURL('image/jpeg');
 
-    const selected = Array.from(document.querySelectorAll('input[name="field"]:checked'))
-        .map(cb => ({
-            name: cb.value,
-            seq: parseInt(cb.parentElement.querySelector('.seq-input').value) || 99
-        }))
-        .sort((a, b) => a.seq - b.seq);
+    const selectedFields = [];
+    for (let i = 1; i <= 4; i++) {
+        const val = document.getElementById(`filenameField${i}`).value;
+        if (val) selectedFields.push(val);
+    }
 
-    if (selected.length === 0) return alert("Select filename fields");
+    if (selectedFields.length === 0) return alert("Please select at least one field for filename");
 
     const student = allData[currentIndex];
-    let filename = selected.map(s => student[s.name]).join('_');
+    let filename = selectedFields.map(f => student[f]).join('_');
     filename = filename.replace(/[^a-z0-9._-]/gi, '_');
 
     const body = {
         image,
         filename,
         format: document.getElementById('imgFormat').value,
-        destination: document.getElementById('destination').value,
-        save_path: document.getElementById('savePath').value,
-        drive_folder_id: document.getElementById('driveFolderId').value,
         compression: document.getElementById('compression').value,
         quality: document.getElementById('imgQuality').value,
         target_size: document.getElementById('targetSize').value,

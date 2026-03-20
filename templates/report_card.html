@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Report Card Preview</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 100%;
+            border: 2px solid black;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid maroon;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+        .logo {
+            width: 80px;
+        }
+        .school-info {
+            text-align: center;
+            flex-grow: 1;
+        }
+        .school-name-hi {
+            color: maroon;
+            font-size: 24pt;
+            font-weight: bold;
+            margin: 0;
+        }
+        .school-name-en {
+            color: maroon;
+            font-size: 20pt;
+            font-weight: bold;
+            margin: 0;
+        }
+        .progress-card-title {
+            text-align: center;
+            font-weight: bold;
+            text-decoration: underline;
+            margin: 5px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 3px;
+            text-align: left;
+        }
+        .student-info-table td {
+            font-size: 9pt;
+        }
+        .bg-yellow { background-color: #ffffcc; }
+        .bg-grey { background-color: #e0e0e0; }
+        .bg-green { background-color: #ccffcc; }
+        .bg-blue { background-color: #cce5ff; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: bold; }
+
+        .marks-table th {
+            text-align: center;
+            font-size: 8pt;
+        }
+        .marks-table td {
+            text-align: center;
+            font-size: 9pt;
+        }
+        .vertical-text {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+        }
+        .footer-sigs {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/static/images/kv_logo.png" class="logo" alt="KV Logo">
+            <div class="school-info">
+                <p class="school-name-hi">केन्द्रीय विद्यालय सी.आर. पी. एफ दुर्गापुर</p>
+                <p class="school-name-en">KENDRIYA VIDYALAYA CRPF DURGAPUR</p>
+            </div>
+            <img src="/static/images/kv_logo_right.png" class="logo" alt="KV Logo Right">
+        </div>
+
+        <div class="progress-card-title">
+            PROGRESS CARD FOR THE ACADEMIC SESSION {{ data.Academic_Session }}
+        </div>
+
+        <table class="student-info-table">
+            <tr>
+                <td class="font-bold">STUDENT'S NAME:</td><td>{{ data.Student_Name }}</td>
+                <td class="font-bold">ROLL NO:</td><td>{{ data.Roll_No }}</td>
+                <td class="font-bold">ADMN NO:</td><td>{{ data.ADMN_NO }}</td>
+                <td class="font-bold">SCHOOL CODE:</td><td>{{ data.School_Code }}</td>
+                <td class="font-bold">UDISE NO.:</td><td>{{ data.UDISE_NO }}</td>
+            </tr>
+            <tr>
+                <td class="font-bold">FATHER'S NAME:</td><td>{{ data.Father_Name }}</td>
+                <td class="font-bold">CLASS & SECTION:</td><td>{{ data.Class_Section }}</td>
+                <td class="font-bold">DOB:</td><td>{{ data.DOB }}</td>
+                <td class="font-bold">AFFIL. NO:</td><td>{{ data.Affil_No }}</td>
+                <td class="font-bold">e-Mail ID:</td><td>{{ data.e_Mail_ID }}</td>
+            </tr>
+            <tr>
+                <td class="font-bold">MOTHER'S NAME:</td><td>{{ data.Mother_Name }}</td>
+                <td class="font-bold">APAAR ID:</td><td>{{ data.APAAR_ID }}</td>
+                <td class="font-bold">PEN NO.</td><td>{{ data.PEN_NO }}</td>
+                <td class="font-bold">Phone No:</td><td>{{ data.Phone_No }}</td>
+                <td class="font-bold">Website:</td><td>{{ data.Website }}</td>
+            </tr>
+        </table>
+
+        <div class="bg-yellow font-bold text-center" style="border: 1px solid black; border-bottom: none;">(A) GROUP 1 : SUBJECTS</div>
+        <table class="marks-table">
+            <tr class="bg-yellow">
+                <th rowspan="2">Group 1 Subjects</th>
+                <th colspan="2">Periodic Test I</th>
+                <th>Written Work</th>
+                <th>Subject Enrichment Activity</th>
+                <th>Learner's Diary</th>
+                <th>MDP</th>
+                <th>Half Yearly</th>
+                <th rowspan="2">I Term Total</th>
+                <th colspan="2">Periodic Test II</th>
+                <th>Written Work</th>
+                <th>Subject Enrichment Activity</th>
+                <th>Learner's Diary</th>
+                <th>MDP</th>
+                <th>SEE</th>
+                <th rowspan="2">II Term Total</th>
+                <th>Grand Total</th>
+                <th>Grand Total Weightage</th>
+                <th rowspan="2" class="bg-green">Grade</th>
+            </tr>
+            <tr class="bg-yellow">
+                <th>M</th><th class="bg-blue">W</th><th>M & W</th><th>M & W</th><th>M & W</th><th>M & W</th><th>M & W</th>
+                <th>M</th><th class="bg-blue">W</th><th>M & W</th><th>M & W</th><th>M & W</th><th>M & W</th><th>M & W</th>
+                <th>M</th><th>W</th>
+            </tr>
+            <tr class="bg-grey">
+                <td class="font-bold">MAX MARKS/ WEIGHTAGE</td>
+                <td>40</td><td class="bg-blue">10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>60</td><td>100</td>
+                <td>40</td><td class="bg-blue">10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>60</td><td>100</td>
+                <td>200</td><td>100</td><td class="bg-green"></td>
+            </tr>
+            {% for sub in ['English', 'Hindi', 'Maths', 'Science', 'Social_Science', 'Sanskrit'] %}
+            <tr>
+                <td class="font-bold text-left">{{ sub }}</td>
+                <td>{{ data[sub ~ '_T1_PT_M'] }}</td><td class="bg-blue">{{ data[sub ~ '_T1_PT_W'] }}</td><td>{{ data[sub ~ '_T1_WW'] }}</td><td>{{ data[sub ~ '_T1_SEA'] }}</td><td>{{ data[sub ~ '_T1_LD'] }}</td><td>{{ data[sub ~ '_T1_MDP'] }}</td><td>{{ data[sub ~ '_T1_HY'] }}</td><td>{{ data[sub ~ '_T1_Total'] }}</td>
+                <td>{{ data[sub ~ '_T2_PT_M'] }}</td><td class="bg-blue">{{ data[sub ~ '_T2_PT_W'] }}</td><td>{{ data[sub ~ '_T2_WW'] }}</td><td>{{ data[sub ~ '_T2_SEA'] }}</td><td>{{ data[sub ~ '_T2_LD'] }}</td><td>{{ data[sub ~ '_T2_MDP'] }}</td><td>{{ data[sub ~ '_T2_SEE'] }}</td><td>{{ data[sub ~ '_T2_Total'] }}</td>
+                <td>{{ data[sub ~ '_Grand_Total_M'] }}</td><td>{{ data[sub ~ '_Grand_Total_W'] }}</td><td class="bg-green">{{ data[sub ~ '_Grade'] }}</td>
+            </tr>
+            {% endfor %}
+            <tr>
+                <td class="font-bold">TOTAL</td>
+                <td></td><td class="bg-blue"></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                <td></td><td class="bg-blue"></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                <td></td><td></td><td class="bg-green"></td>
+            </tr>
+        </table>
+
+        <div class="bg-yellow font-bold text-center" style="border: 1px solid black; border-bottom: none;">(B) GROUP 2 : SUBJECTS</div>
+        <table style="margin-bottom: 0;">
+            <tr>
+                <td class="bg-orange" style="width: 15%;">Art Education</td>
+                <td style="width: 5%;">I Term</td><td style="width: 5%;">II Term</td>
+                <td class="bg-orange" style="width: 15%;">Physical Education & Well Being</td>
+                <td style="width: 5%;">I Term</td><td style="width: 5%;">II Term</td>
+                <td class="bg-orange" style="width: 15%;">Vocational Education (Kaushal Bodh)</td>
+                <td style="width: 5%;">I Term</td><td style="width: 5%;">II Term</td>
+                <td class="bg-yellow" colspan="2">Attendance</td>
+                <td colspan="2">Result</td>
+            </tr>
+            <tr>
+                <td>Visual Arts</td><td>{{ data.Art_T1 }}</td><td>{{ data.Art_T2 }}</td>
+                <td>Basic Concepts</td><td>{{ data.PE_T1 }}</td><td>{{ data.PE_T2 }}</td>
+                <td>Skill Development</td><td>{{ data.Vocational_T1 }}</td><td>{{ data.Vocational_T2 }}</td>
+                <td class="bg-yellow">Term-1</td><td class="bg-yellow">Term-2</td>
+                <td colspan="2" class="text-center font-bold">Promoted to Class</td>
+            </tr>
+            <tr>
+                <td>Music</td><td></td><td></td>
+                <td>Yoga</td><td></td><td></td>
+                <td>Project-Based Assessment</td><td></td><td></td>
+                <td rowspan="3">{{ data.Attendance_T1 }}</td><td rowspan="3">{{ data.Attendance_T2 }}</td>
+                <td colspan="2" class="text-center">{{ data.Promoted_Class }}</td>
+            </tr>
+            <tr>
+                <td>Movement & Dance</td><td></td><td></td>
+                <td>Participation & Engagement</td><td></td><td></td>
+                <td>Career Awareness</td><td></td><td></td>
+                <td colspan="2" class="bg-grey">Subjects in which the student is eligible for improvement exam:</td>
+            </tr>
+            <tr>
+                <td>Theatre</td><td></td><td></td>
+                <td>Team Work</td><td></td><td></td>
+                <td>Teamwork and Social Skills</td><td></td><td></td>
+                <td colspan="2" class="text-center">{{ data.Improvement_Subjects }}</td>
+            </tr>
+            <tr>
+                <td class="bg-orange">Digital Literacy</td><td>{{ data.Digital_T1 }}</td><td>{{ data.Digital_T2 }}</td>
+                <td>Basic Motor Movts.</td><td></td><td></td>
+                <td>Self and Peer</td><td></td><td></td>
+                <td colspan="2" class="bg-yellow">New Session begins on</td>
+                <td colspan="2" class="bg-grey text-center">Class Teacher's Remarks</td>
+            </tr>
+            <tr>
+                <td colspan="3" class="bg-grey">Grading Scale</td>
+                <td>Teachers' Observations during</td><td></td><td></td>
+                <td colspan="2"></td>
+                <td colspan="2" class="text-center">{{ data.New_Session_Date }}</td>
+                <td colspan="2" class="text-center">{{ data.Remarks }}</td>
+            </tr>
+        </table>
+
+        <!-- Grading Scale Table at bottom -->
+        <table style="font-size: 8pt; margin-top: 5px;">
+            <tr>
+                <td rowspan="3" class="font-bold text-center">Group 1 Subjects</td>
+                <td>91 - 100</td><td>A1</td><td>61 - 70</td><td>B2</td><td>33 - 40</td><td>D</td>
+                <td rowspan="3" class="font-bold text-center">Group 2 Subjects</td>
+                <td>A</td><td>5</td><td>Excellent</td><td>D</td><td>2</td><td>Developing</td>
+            </tr>
+            <tr>
+                <td>81 - 90</td><td>A2</td><td>51 - 60</td><td>C1</td><td>0 - 32</td><td>E</td>
+                <td>B</td><td>4</td><td>Proficient</td><td>E</td><td>1</td><td>Beginning</td>
+            </tr>
+            <tr>
+                <td>71 - 80</td><td>B1</td><td>41 - 50</td><td>C2</td><td></td><td></td>
+                <td>C</td><td>3</td><td>Promising</td><td></td><td></td><td></td>
+            </tr>
+        </table>
+
+        <div class="footer-sigs">
+            <div>DATE: {{ data.Date }}</div>
+            <div>CLASS TEACHER</div>
+            <div>CHECKER</div>
+            <div>VICE PRINCIPAL</div>
+            <div>PRINCIPAL</div>
+        </div>
+    </div>
+</body>
+</html>

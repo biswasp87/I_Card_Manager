@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, make_response
 import os
+from werkzeug.utils import secure_filename
 import pandas as pd
 import base64
 from io import BytesIO
@@ -24,6 +25,9 @@ os.makedirs(app.config['PHOTO_FOLDER'], exist_ok=True)
 # Global variable to store student data
 student_df = None
 source_info = {}
+
+# Global variable to store report card data
+report_df = {} # Dict mapping session_id to dataframe
 
 @app.route('/')
 def index():
@@ -70,7 +74,8 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
     if file:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         try:
             student_df = pd.read_excel(filepath)
@@ -99,6 +104,186 @@ def get_data(index):
         return jsonify(row)
     else:
         return jsonify({"error": "Index out of range"}), 404
+
+@app.route('/report_card/upload', methods=['POST'])
+def upload_report_card():
+    global report_df
+    session_id = session.get('report_session_id', os.urandom(16).hex())
+    session['report_session_id'] = session_id
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'report_' + filename)
+        file.save(filepath)
+        try:
+            df = pd.read_excel(filepath)
+            df = df.fillna("")
+            report_df[session_id] = df
+            columns = df.columns.tolist()
+            return jsonify({
+                "message": "Report card data uploaded successfully",
+                "columns": columns,
+                "total": len(df)
+            })
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+@app.route('/uploads/<path:filename>')
+def download_template(filename):
+    return send_from_directory('uploads', filename)
+
+@app.route('/report_card/data/<int:index>', methods=['GET'])
+def get_report_data(index):
+    global report_df
+    session_id = session.get('report_session_id')
+    if not session_id or session_id not in report_df:
+        return jsonify({"error": "No report card data uploaded"}), 400
+    df = report_df[session_id]
+    if 0 <= index < len(df):
+        row = df.iloc[index].to_dict()
+        return jsonify(row)
+    else:
+        return jsonify({"error": "Index out of range"}), 404
+
+@app.route('/report_card/download/<int:index>', methods=['GET'])
+def download_report_card(index):
+    global report_df
+    session_id = session.get('report_session_id')
+    if not session_id or session_id not in report_df:
+        return jsonify({"error": "No report card data uploaded"}), 400
+    df = report_df[session_id]
+    if 0 <= index < len(df):
+        data = df.iloc[index].to_dict()
+        pdf_bytes = generate_report_pdf(data)
+
+        filename = f"Report_Card_{data.get('Student_Name', 'Student')}_{data.get('Roll_No', index)}.pdf"
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        return response
+    else:
+        return jsonify({"error": "Index out of range"}), 404
+
+def generate_report_pdf(data):
+    from fpdf import FPDF
+
+    class PDF(FPDF):
+        def header(self):
+            self.set_line_width(1)
+            self.rect(5, 5, 200, 287) # Outer border
+
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Header Section
+    pdf.set_font("helvetica", 'B', 20)
+    pdf.set_text_color(128, 0, 0)
+    pdf.cell(0, 10, "KENDRIYA VIDYALAYA CRPF DURGAPUR", align='C', new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("helvetica", 'B', 14)
+    pdf.cell(0, 8, "PROGRESS CARD FOR THE ACADEMIC SESSION " + str(data.get('Academic_Session', '')), align='C', new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(5)
+
+    # Student Info Table
+    pdf.set_font("helvetica", 'B', 9)
+    info_fields = [
+        [("STUDENT'S NAME:", data.get('Student_Name', '')), ("ROLL NO:", data.get('Roll_No', '')), ("ADMN NO:", data.get('ADMN_NO', ''))],
+        [("FATHER'S NAME:", data.get('Father_Name', '')), ("CLASS & SEC:", data.get('Class_Section', '')), ("DOB:", data.get('DOB', ''))],
+        [("MOTHER'S NAME:", data.get('Mother_Name', '')), ("APAAR ID:", data.get('APAAR_ID', '')), ("PEN NO:", data.get('PEN_NO', ''))]
+    ]
+
+    col_widths = [40, 26, 40, 26, 40, 28]
+    for row in info_fields:
+        for i, (label, val) in enumerate(row):
+            pdf.set_font("helvetica", 'B', 8)
+            pdf.cell(col_widths[i*2], 6, label, border=1)
+            pdf.set_font("helvetica", '', 8)
+            pdf.cell(col_widths[i*2+1], 6, str(val), border=1)
+        pdf.ln()
+
+    pdf.ln(2)
+
+    # Group 1 Subjects Table
+    pdf.set_fill_color(255, 255, 204) # Yellow
+    pdf.set_font("helvetica", 'B', 10)
+    pdf.cell(0, 6, "(A) GROUP 1 : SUBJECTS", border=1, align='C', fill=True, new_x="LMARGIN", new_y="NEXT")
+
+    # Marks Headers
+    pdf.set_font("helvetica", 'B', 7)
+    pdf.cell(30, 12, "Subjects", border=1, align='C', fill=True)
+    pdf.cell(50, 6, "Term I", border=1, align='C', fill=True)
+    pdf.cell(50, 6, "Term II", border=1, align='C', fill=True)
+    pdf.cell(20, 12, "Grand Total", border=1, align='C', fill=True)
+    pdf.cell(30, 12, "Grade", border=1, align='C', fill=True)
+
+    pdf.set_xy(40, pdf.get_y() + 6)
+    sub_headers = ["PT", "WW", "SEA", "LD", "HY"]
+    for _ in range(2):
+        for h in sub_headers:
+            pdf.cell(10, 6, h, border=1, align='C', fill=True)
+    pdf.ln()
+
+    # Subjects Data
+    subjects = ['English', 'Hindi', 'Maths', 'Science', 'Social_Science', 'Sanskrit']
+    pdf.set_font("helvetica", '', 8)
+    for sub in subjects:
+        pdf.set_font("helvetica", 'B', 8)
+        pdf.cell(30, 6, sub, border=1)
+        pdf.set_font("helvetica", '', 8)
+        # Term 1
+        for f in ['PT_M', 'WW', 'SEA', 'LD', 'HY']:
+            val = data.get(f"{sub}_T1_{f}", "")
+            pdf.cell(10, 6, str(val), border=1, align='C')
+        # Term 2
+        for f in ['PT_M', 'WW', 'SEA', 'LD', 'SEE']:
+            val = data.get(f"{sub}_T2_{f}", "")
+            pdf.cell(10, 6, str(val), border=1, align='C')
+
+        pdf.cell(20, 6, str(data.get(f"{sub}_Grand_Total_M", "")), border=1, align='C')
+        pdf.set_fill_color(204, 255, 204) # Green
+        pdf.cell(30, 6, str(data.get(f"{sub}_Grade", "")), border=1, align='C', fill=True)
+        pdf.set_fill_color(255, 255, 204) # Back to Yellow
+        pdf.ln()
+
+    pdf.ln(2)
+    # Group 2 and Others
+    pdf.set_font("helvetica", 'B', 10)
+    pdf.cell(0, 6, "(B) GROUP 2 : SUBJECTS", border=1, align='C', fill=True, new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("helvetica", 'B', 8)
+    pdf.cell(40, 6, "Subject", border=1, fill=True)
+    pdf.cell(20, 6, "Term I", border=1, align='C', fill=True)
+    pdf.cell(20, 6, "Term II", border=1, align='C', fill=True)
+    pdf.cell(40, 6, "Attendance", border=1, align='C', fill=True)
+    pdf.cell(80, 6, "Remarks", border=1, align='C', fill=True)
+    pdf.ln()
+
+    pdf.set_font("helvetica", '', 8)
+    group2 = [("Art", "Art_T1", "Art_T2"), ("PE", "PE_T1", "PE_T2"), ("Vocational", "Vocational_T1", "Vocational_T2"), ("Digital", "Digital_T1", "Digital_T2")]
+    for i, (name, t1, t2) in enumerate(group2):
+        pdf.cell(40, 6, name, border=1)
+        pdf.cell(20, 6, str(data.get(t1, "")), border=1, align='C')
+        pdf.cell(20, 6, str(data.get(t2, "")), border=1, align='C')
+        if i == 0:
+            curr_x, curr_y = pdf.get_x(), pdf.get_y()
+            pdf.multi_cell(40, 12, f"T1: {data.get('Attendance_T1', '')}\nT2: {data.get('Attendance_T2', '')}", border=1, align='C')
+            pdf.set_xy(curr_x + 40, curr_y)
+            pdf.multi_cell(80, 24, str(data.get('Remarks', '')), border=1, align='C')
+        pdf.ln()
+
+    pdf.ln(10)
+    pdf.set_font("helvetica", 'B', 10)
+    pdf.cell(50, 10, "CLASS TEACHER", align='C')
+    pdf.cell(50, 10, "CHECKER", align='C')
+    pdf.cell(50, 10, "VICE PRINCIPAL", align='C')
+    pdf.cell(50, 10, "PRINCIPAL", align='C')
+
+    return bytes(pdf.output())
 
 @app.route('/get_image/<path:filename>')
 def get_image(filename):

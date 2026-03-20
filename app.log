@@ -1,0 +1,12 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.0.2:8080
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [20/Mar/2026 01:39:35] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [20/Mar/2026 01:39:36] "GET /static/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [20/Mar/2026 01:39:36] "GET /static/js/script.js HTTP/1.1" 200 -
+127.0.0.1 - - [20/Mar/2026 01:39:36] "POST /report_card/upload HTTP/1.1" 200 -
+127.0.0.1 - - [20/Mar/2026 01:39:36] "GET /report_card/data/0 HTTP/1.1" 200 -

@@ -1,6 +1,10 @@
 let currentIndex = 0;
 let totalRecords = 0;
 let columns = [];
+
+let currentReportIndex = 0;
+let totalReportRecords = 0;
+let reportColumns = [];
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const studentDataDisplay = document.getElementById('studentDataDisplay');
@@ -46,6 +50,8 @@ function showMainTab(tabId) {
     tableEl.style.display = tabId === 'tableView' ? 'block' : 'none';
     tableEl.dataset.active = tabId === 'tableView' ? 'true' : 'false';
     
+    document.getElementById('reportView').style.display = tabId === 'reportView' ? 'block' : 'none';
+
     // Manage tab active state
     document.querySelectorAll('.main-tabs .tab-btn').forEach(b => {
         b.classList.toggle('active', b.getAttribute('onclick').includes(tabId));
@@ -177,6 +183,50 @@ function displayRecord(data) {
 
 function nextRecord() { if (currentIndex < totalRecords - 1) fetchRecord(++currentIndex); }
 function prevRecord() { if (currentIndex > 0) fetchRecord(--currentIndex); }
+
+// Report Card Logic
+async function uploadReportExcel() {
+    const file = document.getElementById('reportExcelFile').files[0];
+    if (!file) return alert("Select file");
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/report_card/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) return alert(data.error);
+    reportColumns = data.columns;
+    totalReportRecords = data.total;
+    currentReportIndex = 0;
+    fetchReportRecord(0);
+}
+
+async function fetchReportRecord(idx) {
+    if (totalReportRecords === 0) return;
+    const res = await fetch(`/report_card/data/${idx}`);
+    const data = await res.json();
+    displayReportRecord(data);
+    document.getElementById('reportRecordStatus').innerText = `${idx + 1} / ${totalReportRecords}`;
+}
+
+function displayReportRecord(data) {
+    const reportDataDisplay = document.getElementById('reportDataDisplay');
+    reportDataDisplay.innerHTML = '';
+    for (const [k, v] of Object.entries(data)) {
+        const div = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = `${k}:`;
+        div.appendChild(strong);
+        div.appendChild(document.createTextNode(` ${v}`));
+        reportDataDisplay.appendChild(div);
+    }
+}
+
+function nextReportRecord() { if (currentReportIndex < totalReportRecords - 1) fetchReportRecord(++currentReportIndex); }
+function prevReportRecord() { if (currentReportIndex > 0) fetchReportRecord(--currentReportIndex); }
+
+function downloadReportPDF() {
+    if (totalReportRecords === 0) return alert("Upload report data first");
+    window.open(`/report_card/download/${currentReportIndex}`, '_blank');
+}
 
 let allData = []; // Store all student records locally for table view
 async function fetchAllData() {

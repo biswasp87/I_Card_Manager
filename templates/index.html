@@ -17,6 +17,7 @@
         <div class="main-tabs" style="margin-bottom: 20px;">
             <button class="tab-btn active" onclick="showMainTab('configView')">Configuration & Capture</button>
             <button class="tab-btn" onclick="showMainTab('tableView')">Student Table View</button>
+            <button class="tab-btn" onclick="showMainTab('reportView')">Report Card</button>
         </div>
 
         <main id="configView" class="grid-layout">
@@ -137,6 +138,32 @@
                     </div>
                 </section>
             </div>
+        </main>
+
+        <main id="reportView" class="card" style="display:none;">
+            <section class="card">
+                <h2>Import Report Card Data</h2>
+                <input type="file" id="reportExcelFile" accept=".xlsx, .xls">
+                <button class="primary-btn" onclick="uploadReportExcel()">Upload Report Excel</button>
+                <p class="hint">Use the template: <a href="/uploads/report_card_sample.xlsx" download>report_card_sample.xlsx</a></p>
+            </section>
+
+            <section class="card report-student-card">
+                <div class="student-header">
+                    <h2>Student Report Data</h2>
+                    <div class="nav-controls">
+                        <button class="nav-btn" onclick="prevReportRecord()">←</button>
+                        <span id="reportRecordStatus" class="badge">0 / 0</span>
+                        <button class="nav-btn" onclick="nextReportRecord()">→</button>
+                    </div>
+                </div>
+                <div id="reportDataDisplay" class="data-grid">
+                    <!-- Data items -->
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="primary-btn" onclick="downloadReportPDF()">Download Report Card (PDF)</button>
+                </div>
+            </section>
         </main>
 
         <main id="tableView" class="card" style="display:none;">
